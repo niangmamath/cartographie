@@ -7,45 +7,13 @@
   <title>Générateur de Cartographie d'Entreprise par IA</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <style>
-    html, body {
-      height: 100%;
-      overflow: hidden; /* Prevent body scrollbars */
-    }
-    body {
-      background-color: #f8f9fa;
-    }
-    .main-layout {
-      display: flex;
-      height: 100vh;
-      width: 100vw;
-    }
-    .form-panel {
-      width: 450px;
-      padding: 1.5rem;
-      flex-shrink: 0;
-      overflow-y: auto;
-      background-color: #fff;
-      border-right: 1px solid #ddd;
-    }
-    .map-panel {
-      flex-grow: 1;
-      padding: 1rem;
-    }
-    #map-container {
-      width: 100%;
-      height: 100%;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      overflow: auto;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #fff;
-    }
-    #map-container > svg {
-        max-width: none;
-        max-height: none;
-    }
+    html, body { height: 100%; overflow: hidden; }
+    body { background-color: #f8f9fa; }
+    .main-layout { display: flex; height: 100vh; width: 100vw; }
+    .form-panel { width: 450px; padding: 1.5rem; flex-shrink: 0; overflow-y: auto; background-color: #fff; border-right: 1px solid #ddd; }
+    .map-panel { flex-grow: 1; padding: 1rem; }
+    #map-container { width: 100%; height: 100%; border: 1px solid #ddd; border-radius: 8px; overflow: auto; background-color: #fff; }
+    #map-container > svg, #map-container .mermaid > svg { max-width: none; max-height: none; }
   </style>
 </head>
 <body>
@@ -56,16 +24,31 @@
         <div class="mb-3">
           <label for="map_type" class="form-label">1. Choisissez le type de cartographie :</label>
           <select class="form-select" id="map_type" name="map_type">
-            <option value="processus" selected>Processus (Flux de travail)</option>
-            <option value="organisationnelle">Organisationnelle (Qui fait quoi ?)</option>
-            <option value="applicative">Applicative (Systèmes d'information)</option>
-            <option value="donnees">Données (Flux d'informations)</option>
-            <option value="risques">Risques (Menaces et contrôles)</option>
+            <optgroup label="Processus">
+              <option value="processus_flux">Diagramme de Flux</option>
+              <option value="processus_mental">Carte Mentale</option>
+            </optgroup>
+            <optgroup label="Organisationnelle">
+              <option value="organisationnelle_flux">Diagramme de Relations</option>
+              <option value="organisationnelle_mental">Carte Mentale</option>
+            </optgroup>
+            <optgroup label="Applicative">
+              <option value="applicative_flux">Flux d'Intégration</option>
+              <option value="applicative_mental">Carte Mentale</option>
+            </optgroup>
+            <optgroup label="Données">
+              <option value="donnees_flux">Flux de Données</option>
+              <option value="donnees_mental">Carte Mentale</option>
+            </optgroup>
+            <optgroup label="Risques">
+              <option value="risques_flux">Diagramme de Causalité</option>
+              <option value="risques_mental">Carte Mentale</option>
+            </optgroup>
           </select>
         </div>
         <div class="mb-3">
           <label for="description" class="form-label">2. Décrivez votre entreprise ou projet :</label>
-          <textarea class="form-control" id="description" name="description" rows="10" placeholder="Exemple : Une plateforme e-commerce de vente de café en grains, avec un abonnement mensuel." required></textarea>
+          <textarea class="form-control" id="description" name="description" rows="10" placeholder="Exemple : Une plateforme e-commerce de vente de café en grains." required></textarea>
         </div>
         <div class="d-grid gap-2">
           <button type="submit" id="generate-btn" class="btn btn-primary">Générer la Cartographie</button>
@@ -80,13 +63,15 @@
     </div>
   </div>
 
-  <!-- Markmap Core Libraries -->
+  <!-- Markmap & Mermaid Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5"></script>
   <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.15.4/dist/browser/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.15.4/dist/browser/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.0/dist/mermaid.min.js"></script>
 
-  <!-- Application Logic -->
   <script>
+    mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: { 'primaryColor': '#0d6efd', 'lineColor': '#333', 'textColor': '#333' } });
+
     document.addEventListener('DOMContentLoaded', function () {
       const { Transformer, Markmap } = window.markmap;
       const transformer = new Transformer();
@@ -100,9 +85,9 @@
       mapForm.addEventListener("submit", async function(event) {
         event.preventDefault();
         const description = document.getElementById("description").value;
-        const mapType = document.getElementById("map_type").value; // Get the selected map type
+        const mapType = document.getElementById("map_type").value;
 
-        mapContainer.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Génération en cours...</span></div>';
+        mapContainer.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Génération...</span></div></div>';
         generateBtn.disabled = true;
         downloadBtn.style.display = 'none';
 
@@ -116,65 +101,69 @@
           formData.append('description', description);
           formData.append('map_type', mapType);
 
-          const response = await fetch("/generate", {
-            method: "POST",
-            body: formData
-          });
+          const response = await fetch("/generate", { method: "POST", body: formData });
 
-          if (response.ok) {
-            const data = await response.json();
-            const markdown = data.map;
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Erreur inconnue du serveur.');
+          }
+          
+          const data = await response.json();
+          const diagramData = data.map;
+          const diagramType = data.type;
 
-            if (!markdown || markdown.trim() === '') {
-              throw new Error("La réponse de l'IA est vide ou invalide.");
-            }
+          if (!diagramData || diagramData.trim() === '') {
+            throw new Error("La réponse de l'IA est vide ou invalide.");
+          }
 
-            const { root } = transformer.transform(markdown);
+          mapContainer.innerHTML = '';
 
-            mapContainer.innerHTML = ''; 
+          if (diagramType === 'mermaid') {
+            const mermaidContainer = document.createElement('div');
+            mermaidContainer.className = 'mermaid';
+            mermaidContainer.textContent = diagramData;
+            mapContainer.appendChild(mermaidContainer);
+            await mermaid.run({ nodes: [mermaidContainer] });
+          } else { // markmap
+            const { root } = transformer.transform(diagramData);
             const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             svgEl.style.width = '100%';
             svgEl.style.height = '100%';
             mapContainer.appendChild(svgEl);
-            
             const options = { autoFit: true, nodeShape: 'rect', toolbar: true };
             markmapInstance = Markmap.create(svgEl, options, root);
-
-            downloadBtn.style.display = 'block';
-
-          } else {
-            const errorData = await response.json();
-            mapContainer.innerHTML = `<div class="alert alert-danger m-3"><b>Erreur :</b> ${errorData.error || 'Erreur inconnue du serveur.'}</div>`;
           }
+
+          downloadBtn.style.display = 'block';
+
         } catch (error) {
           console.error("An error occurred:", error);
-          mapContainer.innerHTML = `<div class="alert alert-danger m-3"><b>Erreur :</b> ${error.message || "Une erreur inattendue est survenue."}</div>`;
-        }
-        finally {
-            generateBtn.disabled = false;
+          mapContainer.innerHTML = `<div class="alert alert-danger m-3"><b>Erreur :</b> ${error.message}</div>`;
+        } finally {
+          generateBtn.disabled = false;
         }
       });
 
       downloadBtn.addEventListener("click", function() {
-          const svgEl = mapContainer.querySelector('svg');
-          if (!svgEl) {
-            alert("Aucune carte n'est disponible pour le téléchargement.");
-            return;
-          }
+        const svgEl = mapContainer.querySelector('svg');
+        if (!svgEl) {
+          alert("Aucun diagramme à télécharger.");
+          return;
+        }
 
-          const serializer = new XMLSerializer();
-          let svgString = serializer.serializeToString(svgEl);
-          svgString = '<?xml version="1.0" standalone="no"?>\r\n' + svgString;
+        const serializer = new XMLSerializer();
+        let svgString = serializer.serializeToString(svgEl);
+        svgString = '<?xml version="1.0" standalone="no"?>\r\n' + svgString;
 
-          const blob = new Blob([svgString], {type: "image/svg+xml;charset=utf-8"});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `cartographie_${document.getElementById("map_type").value}.svg`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+        const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-t-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `cartographie_${document.getElementById("map_type").value}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       });
     });
   </script>
