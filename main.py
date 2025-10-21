@@ -1,3 +1,4 @@
+
 import os
 import re
 import openai
@@ -66,12 +67,22 @@ PROMPT_INSTRUCTIONS = {
     }
 }
 
+# --- Routes pour servir les pages statiques ---
 @app.route("/")
 def index():
     return send_file('src/index.html')
 
+@app.route("/login")
+def login():
+    return send_file('src/login.html')
+
+@app.route("/generator")
+def generator():
+    return send_file('src/generator.html')
+
+# --- Route API pour la génération de diagrammes ---
 @app.route("/generate", methods=["POST"])
-def generate():
+def generate_map():
     try:
         description = request.form.get("description")
         map_type = request.form.get("map_type", "processus_flux")
