@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Business Map Generator</title>
+  <title>Générateur de Cartographie d'Entreprise par IA</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <style>
     html, body {
@@ -20,7 +20,7 @@
       width: 100vw;
     }
     .form-panel {
-      width: 400px;
+      width: 450px;
       padding: 1.5rem;
       flex-shrink: 0;
       overflow-y: auto;
@@ -51,21 +51,31 @@
 <body>
   <div class="main-layout">
     <div class="form-panel">
-      <h3 class="mb-4">AI Business Map Generator</h3>
+      <h3 class="mb-4">Cartographie d'Entreprise par IA</h3>
       <form id="map-form">
         <div class="mb-3">
-          <label for="description" class="form-label">Enter your business description:</label>
-          <textarea class="form-control" id="description" name="description" rows="10" required></textarea>
+          <label for="map_type" class="form-label">1. Choisissez le type de cartographie :</label>
+          <select class="form-select" id="map_type" name="map_type">
+            <option value="processus" selected>Processus (Flux de travail)</option>
+            <option value="organisationnelle">Organisationnelle (Qui fait quoi ?)</option>
+            <option value="applicative">Applicative (Systèmes d'information)</option>
+            <option value="donnees">Données (Flux d'informations)</option>
+            <option value="risques">Risques (Menaces et contrôles)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="description" class="form-label">2. Décrivez votre entreprise ou projet :</label>
+          <textarea class="form-control" id="description" name="description" rows="10" placeholder="Exemple : Une plateforme e-commerce de vente de café en grains, avec un abonnement mensuel." required></textarea>
         </div>
         <div class="d-grid gap-2">
-          <button type="submit" id="generate-btn" class="btn btn-primary">Generate Map</button>
-          <button type="button" id="download-btn" class="btn btn-secondary" style="display: none;">Download SVG</button>
+          <button type="submit" id="generate-btn" class="btn btn-primary">Générer la Cartographie</button>
+          <button type="button" id="download-btn" class="btn btn-secondary" style="display: none;">Télécharger en SVG</button>
         </div>
       </form>
     </div>
     <div class="map-panel">
       <div id="map-container">
-        <p class="text-muted">Your mind map will appear here.</p>
+        <p class="text-muted">Votre cartographie apparaîtra ici.</p>
       </div>
     </div>
   </div>
@@ -90,8 +100,9 @@
       mapForm.addEventListener("submit", async function(event) {
         event.preventDefault();
         const description = document.getElementById("description").value;
+        const mapType = document.getElementById("map_type").value; // Get the selected map type
 
-        mapContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
+        mapContainer.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Génération en cours...</span></div>';
         generateBtn.disabled = true;
         downloadBtn.style.display = 'none';
 
@@ -101,44 +112,43 @@
         }
 
         try {
+          const formData = new URLSearchParams();
+          formData.append('description', description);
+          formData.append('map_type', mapType);
+
           const response = await fetch("/generate", {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `description=${encodeURIComponent(description)}`
+            body: formData
           });
 
           if (response.ok) {
             const data = await response.json();
             const markdown = data.map;
 
-            if (!markdown || typeof markdown.trim() === '') {
-              throw new Error("Received empty or invalid map data from the server.");
+            if (!markdown || markdown.trim() === '') {
+              throw new Error("La réponse de l'IA est vide ou invalide.");
             }
 
-            // Transform the markdown to get the root data for the map.
             const { root } = transformer.transform(markdown);
 
-            // Clear container and create a new SVG element
             mapContainer.innerHTML = ''; 
             const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             svgEl.style.width = '100%';
             svgEl.style.height = '100%';
             mapContainer.appendChild(svgEl);
             
-            // Create the map directly, without loading external assets.
             const options = { autoFit: true, nodeShape: 'rect', toolbar: true };
             markmapInstance = Markmap.create(svgEl, options, root);
 
-            // Show the download button.
             downloadBtn.style.display = 'block';
 
           } else {
             const errorData = await response.json();
-            mapContainer.innerHTML = `<div class="alert alert-danger m-3">Error: ${errorData.error || 'Unknown server error'}</div>`;
+            mapContainer.innerHTML = `<div class="alert alert-danger m-3"><b>Erreur :</b> ${errorData.error || 'Erreur inconnue du serveur.'}</div>`;
           }
         } catch (error) {
           console.error("An error occurred:", error);
-          mapContainer.innerHTML = `<div class="alert alert-danger m-3">${error.message || "An unexpected client-side error occurred."}</div>`;
+          mapContainer.innerHTML = `<div class="alert alert-danger m-3"><b>Erreur :</b> ${error.message || "Une erreur inattendue est survenue."}</div>`;
         }
         finally {
             generateBtn.disabled = false;
@@ -148,7 +158,7 @@
       downloadBtn.addEventListener("click", function() {
           const svgEl = mapContainer.querySelector('svg');
           if (!svgEl) {
-            alert("No map available to download.");
+            alert("Aucune carte n'est disponible pour le téléchargement.");
             return;
           }
 
@@ -160,7 +170,7 @@
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "mindmap.svg";
+          a.download = `cartographie_${document.getElementById("map_type").value}.svg`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
